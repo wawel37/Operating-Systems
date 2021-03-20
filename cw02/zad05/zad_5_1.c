@@ -53,86 +53,94 @@ char *readFileLib(char *fileAddress){
     return result;
 }
 
-char *readLine(char *fileContainer, int numOfLine){
-    size_t ptr = 0;
-    int counter = 0;
-    while(counter != numOfLine){
-        if(fileContainer[ptr] == '\n'){
-            counter++;
-        }else if(fileContainer[ptr] == '\0'){
-            return NULL;
+void solveSys(char *file1, char *file2){
+    const int N = 5;
+
+    //FILE* output = fopen(file2, "w+");
+    int output = open(file2, O_WRONLY);
+    char *file = readFile(file1);
+    
+    size_t additionalSpace = 0, fileLength = strlen(file);
+    for(int i = 0; i < fileLength; i++){
+        int lineCounter = 0;
+        while(file[i] != '\n' && i < fileLength){
+            lineCounter++;
+            i++;
         }
-        ptr++;
-    }
-    if(fileContainer[ptr] == '\0') return NULL;
 
-    size_t ptr2 = ptr;
-    while(fileContainer[ptr2] != '\n'){
-        ptr2++;
+        additionalSpace += lineCounter / N;
     }
 
-    int lineLength = ptr2 - ptr + 1;
-    char *result = (char*)malloc(sizeof(char)*lineLength + 1);
-    for(int i = 0; i < lineLength; i++){
-        result[i] = fileContainer[ptr];
-        ptr++;
+    int newSize = fileLength + additionalSpace + 1;
+    char *buff = (char*)malloc(sizeof(char)*(newSize));
+    
+    int newPtr = 0;
+    for(int i = 0; i < fileLength; i++){
+        int lineCounter = 0;
+        while(file[i] != '\n' && lineCounter != N && i < fileLength){
+            lineCounter++;
+            i++;
+        }
+        
+        for(int j = i - lineCounter; j < i; j++){
+            buff[newPtr] = file[j];
+            newPtr++;
+        }
+        if(lineCounter == N) i--;
+        buff[newPtr] = '\n';
+        newPtr++;
     }
-    result[lineLength] = '\0';
-    return result;
+    
+    buff[newSize - 1] = '\n';
+    //fwrite(buff, sizeof(char), newSize, output);
+    write(output, buff, newSize);
+    close(output);
+    free(buff);
+    free(file);
 }
 
-void printLinesContainingSign(char *fileAddress, char sign){
-    if(fileAddress == NULL){
-        return;
-    }
-    int counter = 0;
-    char *buff = readFile(fileAddress);
-    char *line;
-    while((line = readLine(buff, counter)) != NULL){
-        size_t ptr = 0;
-        int flag = 0;
-        while(line[ptr] != '\0'){
-            if(line[ptr] == sign){
-                flag = 1;
-            }
-            ptr++;
+void solve(char *file1, char *file2){
+    const int N = 5;
+
+    FILE* output = fopen(file2, "w+");
+    char *file = readFile(file1);
+    
+    size_t additionalSpace = 0, fileLength = strlen(file);
+    for(int i = 0; i < fileLength; i++){
+        int lineCounter = 0;
+        while(file[i] != '\n' && i < fileLength){
+            lineCounter++;
+            i++;
         }
 
-        if(flag == 1){
-            printf("%s", line);
-        }
-        free(line);
-        counter++;
+        additionalSpace += lineCounter / N;
     }
 
+    int newSize = fileLength + additionalSpace + 1;
+    char *buff = (char*)malloc(sizeof(char)*(newSize));
+    
+    int newPtr = 0;
+    for(int i = 0; i < fileLength; i++){
+        int lineCounter = 0;
+        while(file[i] != '\n' && lineCounter != N && i < fileLength){
+            lineCounter++;
+            i++;
+        }
+        
+        for(int j = i - lineCounter; j < i; j++){
+            buff[newPtr] = file[j];
+            newPtr++;
+        }
+        if(lineCounter == N) i--;
+        buff[newPtr] = '\n';
+        newPtr++;
+    }
+    
+    buff[newSize - 1] = '\n';
+    fwrite(buff, sizeof(char), newSize, output);
+    fclose(output);
     free(buff);
-}
-
-void printLinesContainingSignSys(char *fileAddress, char sign){
-    if(fileAddress == NULL){
-        return;
-    }
-    int counter = 0;
-    char *buff = readFileLib(fileAddress);
-    char *line;
-    while((line = readLine(buff, counter)) != NULL){
-        size_t ptr = 0;
-        int flag = 0;
-        while(line[ptr] != '\0'){
-            if(line[ptr] == sign){
-                flag = 1;
-            }
-            ptr++;
-        }
-
-        if(flag == 1){
-            printf("%s", line);
-        }
-        free(line);
-        counter++;
-    }
-
-    free(buff);
+    free(file);
 }
 
 double calculateRealTime(clock_t *realTime, int idx){
@@ -153,9 +161,9 @@ void calculateAllTimes(struct tms *userTime, clock_t *realTime, int idx){
     printf("SYSTEM: %lf\n", calculateSystemTime(userTime, idx));
 }
 
-int main(int argc, char** argv){
-    char* fileAddress = argv[2];
-    char sign = argv[1][0];
+int main(int argc, char **argv){
+    char *file1 = argv[1];
+    char *file2 = argv[2];
 
     struct tms userTime[3];
     clock_t realTime[3];
@@ -163,12 +171,12 @@ int main(int argc, char** argv){
     times(&userTime[0]);
     realTime[0] = clock();
 
-    printLinesContainingSign(fileAddress, sign);
+    solve(file1, file2);
 
     times(&userTime[1]);
     realTime[1] = clock();
 
-    printLinesContainingSignSys(fileAddress, sign);
+    solveSys(file1,file2);
 
     times(&userTime[2]);
     realTime[2] = clock();

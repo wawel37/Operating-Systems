@@ -1,8 +1,6 @@
 CC = gcc
 CC_FLAGS = -Wall -O0 -std=c11
 
-.PHONY: clean run1
-
 clean:
 	rm -f *.o
 	rm -f *.a
@@ -11,8 +9,8 @@ clean:
 	rm -f *test*
 	rm -f *output*
 
-compile1: clean
-	$(CC) $(CC_FLAGS) -g zad_1_1.c -o output
+compile4: clean
+	$(CC) $(CC_FLAGS) zad_4_1.c -o output
 
-run1:
-	./output text1.txt text2.txt
+run4:
+	./output input.txt output.txt test dupa

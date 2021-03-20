@@ -1,6 +1,13 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+#include <sys/times.h>
+#include <dlfcn.h>
 
 char *readFile(const char *fileAddress){
     size_t length = 0, fileLength = 0;
@@ -8,10 +15,12 @@ char *readFile(const char *fileAddress){
     char *buff = NULL;
     
     while(fileLength == length){
-        length += 1000;
+        length += 100;
         free(buff);
-        buff = (char*)malloc(sizeof(char)* length);
+        buff = (char*)malloc(sizeof(char)* length + 1);
         fileLength = fread(buff, sizeof(char), length, file);
+        buff[fileLength] = '\0';
+        rewind(file);
     }
 
     char *result = (char*)malloc(sizeof(char)*fileLength + 1);
@@ -19,6 +28,28 @@ char *readFile(const char *fileAddress){
     result[fileLength] = '\0';
     free(buff);
     fclose(file);
+    return result;
+}
+
+char *readFileLib(const char *fileAddress){
+    size_t length = 0, fileLength = 0;
+    int file = open(fileAddress, O_RDONLY);
+    char *buff = NULL;
+    
+    while(fileLength == length){
+        length += 100;
+        free(buff);
+        buff = (char*)malloc(sizeof(char)* length + 1);
+        fileLength = read(file, buff, length);
+        buff[fileLength] = '\0';
+        lseek(file, 0, SEEK_SET);
+    }
+
+    char *result = (char*)malloc(sizeof(char)*fileLength + 1);
+    strcpy(result, buff);
+    result[fileLength] = '\0';
+    free(buff);
+    close(file);
     return result;
 }
 
@@ -58,6 +89,60 @@ int checkIfRoot(int n){
         }
     }
     return flag;
+}
+
+void solveSys(const char* fileAddress){
+    if(fileAddress == NULL){
+        printf("There is no valid file name!\n");
+        return;
+    }
+    // FILE *fileA = fopen("a.txt", "w+");
+    // FILE *fileB = fopen("b.txt", "w+");
+    // FILE *fileC = fopen("c.txt", "w+");
+
+    int fileA = open("a.txt", O_WRONLY);
+    int fileB = open("b.txt", O_WRONLY);
+    int fileC = open("c.txt", O_WRONLY);
+
+
+    char *file = readFileLib(fileAddress), *line;
+    int counter = 0, evenCounter = 0;
+    while((line = readLine(file,counter)) != NULL){
+        size_t ptr = 0;
+        size_t len = strlen(line);
+        if(len > 1){
+            while(line[ptr] != '\n'){
+                ptr++;
+            }
+            if((line[ptr - 1] - 48) % 2 == 0){
+                evenCounter++;
+            }
+            if(ptr > 1 && (line[ptr - 2] == '7' || line[ptr - 2] == '0')){
+                // fwrite(line, sizeof(char), len, fileB);
+                write(fileB, line, len);
+            }
+            int number = atoi(line);
+            if(checkIfRoot(number) == 1){
+                //fwrite(line, sizeof(char), len, fileC);
+                write(fileC, line, len);
+            }
+        }
+        
+        counter++;
+        free(line);
+    }
+    char charNumber[10];
+    sprintf(charNumber, "%d", evenCounter);
+    char result[30] = "Liczb parzystych jest ";
+    strcat(result, charNumber);
+    //fwrite(result, sizeof(char), strlen(result), fileA);
+    write(fileA, result, strlen(result));
+
+
+    close(fileA);
+    close(fileB);
+    close(fileC);
+    free(file);
 }
 
 void solve(const char* fileAddress){
@@ -106,10 +191,46 @@ void solve(const char* fileAddress){
     free(file);
 }
 
+double calculateRealTime(clock_t *realTime, int idx){
+    return (double) (realTime[idx] - realTime[idx - 1]) / CLOCKS_PER_SEC;
+}
+
+double calculateUserTime(struct tms *userTime, int idx){
+    return (double) (userTime[idx].tms_utime - userTime[idx - 1].tms_utime) / sysconf(_SC_CLK_TCK);
+}
+
+double calculateSystemTime(struct tms *systemTime, int idx){
+    return (double) (systemTime[idx].tms_stime - systemTime[idx - 1].tms_stime) / sysconf(_SC_CLK_TCK);
+}
+
+void calculateAllTimes(struct tms *userTime, clock_t *realTime, int idx){
+    printf("REAL: %lf\n", calculateRealTime(realTime, idx));
+    printf("USER: %lf\n", calculateUserTime(userTime, idx));
+    printf("SYSTEM: %lf\n", calculateSystemTime(userTime, idx));
+}
 
 int main(){
+    struct tms userTime[3];
+    clock_t realTime[3];
 
-    solve("dane.txt");
+    times(&userTime[0]);
+    realTime[0] = clock();
+
+    //solve("dane.txt");
+
+    times(&userTime[1]);
+    realTime[1] = clock();
+
+    solveSys("dane.txt");
+
+    times(&userTime[2]);
+    realTime[2] = clock();
+
+    printf("---- Library ----\n");
+    calculateAllTimes(userTime, realTime, 1);
+
+    printf("---- System ----\n");
+    calculateAllTimes(userTime, realTime, 2);
 
     return 0;
 }
