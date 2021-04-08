@@ -26,7 +26,7 @@ char *readFile(const char *fileName){
 void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int depth){
     //printf("path: %s\n", path);
     DIR* directory = opendir(path);
-    if(depth == MAX_DEPTH){
+    if(depth > MAX_DEPTH){
         return;
     }
 
@@ -45,6 +45,7 @@ void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int de
 
         if(d->d_type == DT_REG && strstr(d->d_name, ".txt") != NULL){
             //printf("came into file\n");
+
             char newFilePath[PATH_BUFFOR_SIZE];
             if(path[strlen(path) - 1] != '/'){
                 snprintf(newFilePath, PATH_BUFFOR_SIZE, "%s/%s", path, d->d_name);
@@ -54,7 +55,9 @@ void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int de
             }
 
             char *file = readFile(newFilePath);
+
             //printf("file: %s\n", file);
+
             if(strstr(file, PATTERN) != NULL){
                 printf("PID: %d \t PPID: %d \t %s\n", getpid(), getppid(), newFilePath);
             }
@@ -65,6 +68,7 @@ void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int de
             
             if(fork() == 0){
                 char newDirPath[PATH_BUFFOR_SIZE];
+
                 if(path[strlen(path) - 1] != '/'){
                     snprintf(newDirPath, PATH_BUFFOR_SIZE, "%s/%s", path, d->d_name);
                 }else{
@@ -73,6 +77,8 @@ void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int de
 
                 closedir(directory);
                 checkDir(newDirPath, MAX_DEPTH, PATTERN, depth + 1);
+                int status = 0;
+                while(wait(&status) > 0);
                 exit(0);
             }
         }
@@ -80,10 +86,6 @@ void checkDir(const char *path, const int MAX_DEPTH, const char *PATTERN, int de
 
     closedir(directory);
 }
-
-
-
-
 
 int main(int argc, char **argv){
     if (argc != 4){
