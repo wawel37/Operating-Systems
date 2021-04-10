@@ -7,7 +7,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define CUSTOM_SIGNAL SIGSTOP
+#define CUSTOM_SIGNAL SIGUSR1
 
 void testingHandler(int signal){
     printf("Recieved signal number: %d \t Parent: %d \t Current: %d\n", signal, getppid(), getpid());
@@ -26,18 +26,18 @@ void testIgnore(){
     struct sigaction signal;
     signal.sa_handler = SIG_IGN;
     sigaction(CUSTOM_SIGNAL, &signal, NULL);
-
+    
     pid_t childPID;
     if((childPID = fork()) < 0){
         printf("Error occured while creating child process\n");
         exit(1);
-    }else if (childPID != 0){
+    }else if (childPID == 0){
         raise(CUSTOM_SIGNAL);
-        printf("Signal in parent process ignored successfully!\n");
+        fprintf(stderr, "Signal in parent process ignored successfully!\n");
         while(wait(NULL) > 0);
     }else{
         raise(CUSTOM_SIGNAL);
-        printf("Signal in child process ignored successfully!\n");
+        fprintf(stderr, "Signal in child process ignored successfully!\n");
     }
     exit(1);
 }
@@ -53,7 +53,7 @@ void testHandler(){
     if((childPID = fork()) < 0){
         printf("Error occured while creating child process\n");
         exit(1);
-    }else if (childPID != 0){
+    }else if (childPID == 0){
         raise(CUSTOM_SIGNAL);
         printf("Signal in parent process handled successfully!\n");
         while(wait(NULL) > 0);
@@ -73,14 +73,13 @@ void testPending(){
 
     raise(CUSTOM_SIGNAL);
 
-    sigpending(&pendingMask);
 
     pid_t childPID;
     int isPending;
     if((childPID = fork()) < 0){
         printf("Error occured while creating child process\n");
         exit(1);
-    }else if (childPID != 0){
+    }else if (childPID == 0){
         sigpending(&pendingMask);
         isPending = sigismember(&pendingMask, CUSTOM_SIGNAL);
         printf("== Parent ==\n Signal Pending: %s\n", isPending ? "Yes" : "No");
@@ -109,7 +108,7 @@ void testMask(){
     if((childPID = fork()) < 0){
         printf("Error occured while creating child process\n");
         exit(1);
-    }else if (childPID != 0){
+    }else if (childPID == 0){
         raise(CUSTOM_SIGNAL);
         
         sigpending(&pendingMask);
@@ -131,6 +130,7 @@ void testMask(){
 
 int main(int argc, char **argv){
     if(strcmp(argv[1], "ignore") == 0){
+        
         testIgnore();
     }else if(strcmp(argv[1], "pending") == 0){
         testPending();

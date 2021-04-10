@@ -7,7 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
-int sigCounter = 0;
+int sigCounter = -1;
 int recievedSIGUSR2 = 0, recievedSIGRTMAX = 0;
 pid_t senderPID;
 int mode = 0;
@@ -18,6 +18,14 @@ void catchSIGUSR1(int sig, siginfo_t *info, void *ucontext){
         sigCounter++;
         senderPID = info->si_pid;
         mode = info->si_value.sival_int;
+        if(mode == 0){
+            kill(senderPID, sig);
+        }
+        else{
+            union sigval value;
+            value.sival_int = mode;
+            sigqueue(senderPID, sig, value);
+        }
     }
 }
 
@@ -25,6 +33,14 @@ void catchSIGUSR2(int sig){
     printf("recieved signal USR2\n");
     recievedSIGUSR2 = 1;
     raise(SIGUSR1);
+    if(mode == 0){
+        kill(senderPID, sig);
+    }
+    else{
+        union sigval value;
+        value.sival_int = mode;
+        sigqueue(senderPID, sig, value);
+    }
 }
 
 void catchSIGRTMIN(int sig, siginfo_t *info, void *ucontext){
@@ -32,6 +48,7 @@ void catchSIGRTMIN(int sig, siginfo_t *info, void *ucontext){
         sigCounter++;
         senderPID = info->si_pid;
         mode = 2;
+        kill(senderPID, sig);
     }
 }
 
@@ -39,6 +56,7 @@ void catchSIGRTMAX(int sig){
     recievedSIGRTMAX = 1;
     printf("received sigrtmax\n");
     raise(SIGRTMIN);
+    kill(senderPID, sig);
 }
 
 void setupSigCatcher(){
@@ -76,39 +94,12 @@ void listenForSignals(){
     printf("Recieved %d basic signals\n", sigCounter);
 }
 
-void sendSignalsBackKill(int sig1, int sig2){
-    printf("PID of SENDER: %d\n", senderPID);
-    int result;
-    for(int i = 0; i < sigCounter; i++){
-        //printf("Sending signal %d to pid: %d\n", sig1, senderPID);
-        result = kill(senderPID, sig1);
-        //printf("Result of sending signal: %d\n", result);
-    }
-    //printf("Result of sig1: %d\n", result);
-    result = kill(senderPID, sig2);
-    printf("Result of sig2: %d\n", result);
-    printf("Sent all signals!\n");
-}
 
-void sendSignalsBackSIGQUEUE(){
-    union sigval value;
-    value.sival_int = mode;
-    for(int i = 0; i < sigCounter; i++){
-        sigqueue(senderPID, SIGUSR1, value);
-    }
-    sigqueue(senderPID, SIGUSR2, value);
-}
 
 int main(int argc, char** argv){
     setupSigCatcher();
     printf("My PID: %d\n", getpid());
     listenForSignals();
-    if(mode == 0){
-        sendSignalsBackKill(SIGUSR1, SIGUSR2);
-    }else if(mode == 1){
-        sendSignalsBackSIGQUEUE();
-    }else if(mode == 2){
-        sendSignalsBackKill(SIGRTMIN, SIGRTMAX);
-    }
+    
     return 0;
 }

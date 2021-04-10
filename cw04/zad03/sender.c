@@ -31,7 +31,7 @@ void catchSIGRTMIN(int sig, siginfo_t *info, void *ucontext){
 
 void catchSIGRTMAX(int sig){
     recievedSIGRTMAX = 1;
-    raise(SIGRTMAX);
+    raise(SIGRTMIN);
 }
 
 void sendSignalsKill(int numOfSignals, pid_t catcherPID){
@@ -40,33 +40,24 @@ void sendSignalsKill(int numOfSignals, pid_t catcherPID){
     sigdelset(&tempMask, SIGUSR1);
     for(int i = 0; i < numOfSignals; i++){
         int result = kill(catcherPID, SIGUSR1);
-        sigsuspend(&tempMask);
     }
     kill(catcherPID, SIGUSR2);
     sigCounter = 0;
 }
 
 void sendSignalsSIGQUEUE(int numOfSignals, pid_t catcherPID){
-    sigset_t tempMask;
-    sigfillset(&tempMask);
-    sigdelset(&tempMask, SIGUSR1);
     union sigval value;
     value.sival_int = 1;
     for(int i = 0; i < numOfSignals; i++){
         sigqueue(catcherPID, SIGUSR1, value);
-        sigsuspend(&tempMask);
     }
     sigqueue(catcherPID, SIGUSR2, value);
     sigCounter = 0;
 }
 
 void sendSignalsSIGRT(int numOfSignals, pid_t catcherPID){
-    sigset_t tempMask;
-    sigfillset(&tempMask);
-    sigdelset(&tempMask, SIGUSR1);
     for(int i = 0; i < numOfSignals; i++){
         int result = kill(catcherPID, SIGRTMIN);
-        sigsuspend(&tempMask);
     }
     kill(catcherPID, SIGRTMAX);
     sigCounter = 0;
@@ -104,7 +95,6 @@ void listenForSignals(){
     while(recievedSIGUSR2 == 0 && recievedSIGRTMAX == 0){
         sigsuspend(&tempMask);
     }
-
     printf("Recieved %d basic signals\n", sigCounter);
 }
 
