@@ -62,10 +62,12 @@ void freeAllIngredients(Ingredient* ingredients, int numOfIngredients){
 int getIngredientID(char* buff){
     int result = 0;
     for(char* i = buff + sizeof(char)*8; *i != ' ' && *i != '\n'; i += sizeof(char)){
+        //printf("moje i: '%s'\n", i);
         result *= 10;
         result += *i - '0';
     }
-    //printf("%d\n", result);
+    //printf("buffor: %s\n", buff);
+    //printf("result: %d\n", result);
     return result;
 }
 
@@ -119,13 +121,12 @@ void execCommands(char* buff, Ingredient* ingredients, int numOfingredients){
         ingredientsID[counter] = getIngredientID(a);
         counter++;
     }
-    
 
     int commandCounter = 0;
     for(int i = 0; i < counter; i++){
         printf("igid: %d\n", ingredientsID[i]);
         Ingredient* ingredient = getIngredientWithID(ingredients, ingredientsID[i], numOfingredients);
-        printf("dupa\n");
+        
         commandCounter += ingredient->length;
     }
 
@@ -135,13 +136,15 @@ void execCommands(char* buff, Ingredient* ingredients, int numOfingredients){
         fds[i] = malloc(sizeof (int) * 2);
         pipe(fds[i]);
     }
-    //printf("commandcounter: %d\n", commandCounter);
     int iterator = 0;
     for(int i = 0; i < counter; i++){
         Ingredient* ingredient = getIngredientWithID(ingredients, ingredientsID[i], numOfingredients);
-        //printf("%d\n", ingredient->id);
+
+        //Deleting end line char
+        int length = strlen(ingredient->commands[ingredient->length - 1].content[ingredient->commands[ingredient->length - 1].length - 1]);
+        ingredient->commands[ingredient->length - 1].content[ingredient->commands[ingredient->length - 1].length - 1][length - 1] = '\0';
+        
         for(int j = 0; j < ingredient->length; j++){
-            
             if(fork() == 0){
                 if(iterator > 0){
                     dup2(fds[iterator - 1][END], STDIN_FILENO);
@@ -153,7 +156,7 @@ void execCommands(char* buff, Ingredient* ingredients, int numOfingredients){
                     close(fds[k][BEG]);
                     close(fds[k][END]);
                 }
-                
+                      
                 execvp(ingredient->commands[j].content[0], ingredient->commands[j].content);
             }
             iterator++;
@@ -176,7 +179,7 @@ void execCommands(char* buff, Ingredient* ingredients, int numOfingredients){
 void processFile(const char* fileName){
     FILE *file = fopen(fileName, "r");
     Ingredient* ingredients = NULL;
-
+    
     if(file == NULL){
         printf("File doesn't exists\n");
         exit(1);
