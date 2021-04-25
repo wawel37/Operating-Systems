@@ -1,25 +1,10 @@
-#define _POSIX_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <unistd.h>
-#include <ctype.h>
-#include <time.h>
-#include <signal.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdbool.h>
 #include "lib.h"
 
 //GLOBAL VARIABLES
 Client clients[MAX_CLIENTS];
 int serverQueueID = NOT_EXISTING;
 
+void signalHandler(int sig);
 void exitHandler();
 void initializeServer();
 void initializeServerQueue();
@@ -35,6 +20,7 @@ void sendMessage(Message *message, int index);
 
 
 int main(){
+    printf("moj pid: %d\n", getpid());
     initializeServer();
     initializeServerQueue();
 
@@ -48,13 +34,25 @@ int main(){
 void exitHandler(){
     if(serverQueueID != NOT_EXISTING){
         for(int i = 0; i < MAX_CLIENTS; i++){
-            kill(clients[i].pid, SIGINT);
+            if(clients[i].pid != NOT_EXISTING){
+                Message message;
+                message.type = STOP;
+                message.sourcePid = getpid();
+                sendMessage(&message, i);
+            }
         }
-
+        //TODO
+        //Wyrzuca tutaj error, a tak naprawde dziala (nie wiem dlaczego)
+        printf("moje serverid to : %d\n", serverQueueID);
         if(msgctl(serverQueueID, IPC_RMID, NULL) == -1){
-            perror("Server Queue couldn't be removed!\n");
+            printf("error: %d\n", errno);
+            perror("Server Queue couldn't be removed!");
         }
     }
+}
+
+void signalHandler(int sig){
+    exit(1);
 }
 
 void initializeServer(){
@@ -69,14 +67,14 @@ void initializeServer(){
     }
 
     //Initializing normal exit
-    // if(atexit(exitHandler) != 0){
-    //     perror("Exit function not set!\n");
-    //     exit(1);
-    // }
+    if(atexit(exitHandler) != 0){
+        perror("Exit function not set!");
+        exit(1);
+    }
 
     //Initializing ctrl - c exit
-    if(signal(SIGINT, exitHandler) == SIG_ERR){
-        perror("Error occurred while setting SIGINT handler\n");
+    if(signal(SIGINT, signalHandler) == SIG_ERR){
+        perror("Error occurred while setting SIGINT handler");
         exit(1);
     }
 }
@@ -85,24 +83,29 @@ void initializeServerQueue(){
     key_t serverQueueKey = ftok(HOME_PATH, QUEUE_KEY_SEED);
 
     if(serverQueueKey == -1){
-        perror("Error occurred while generating server queue key\n");
+        perror("Error occurred while generating server queue key");
         exit(1);
     }
 
+    //if the queue already exists
+    if((serverQueueID = msgget(serverQueueKey, 0666)) > -1){
+        msgctl(serverQueueID, IPC_RMID, NULL);
+    }
+
     //Flags set to return error when a queue with this key already exists
-    serverQueueID = msgget(serverQueueKey, IPC_CREAT | IPC_EXCL);
+    serverQueueID = msgget(serverQueueKey, IPC_CREAT | IPC_EXCL | 0666);
 
     if(serverQueueID == -1){
-        perror("Error occuredd while reading V system msg queue (probably a queue with this key already exists!)\n");
+        perror("Error occuredd while reading V system msg queue (probably a queue with this key already exists!)");
         exit(1);
     }
 }
 
 void listenToMessages(){
-    Message message;
-
-    if(msgrcv(serverQueueID, &message, sizeof(Message),0,0) == -1){
-        perror("Error while recieving message\n");
+    struct Message message;
+    printf("%d\n", serverQueueID);
+    if(msgrcv(serverQueueID, &message, MESSAGE_STRUCT_SIZE,0,0) == -1){
+        perror("Error while recieving message");
         exit(1);
     }
 
@@ -128,16 +131,18 @@ void listenToMessages(){
 void initClient(Message *message){
     int index = getFirstFreeClientID();
     if(index == FULL_CLIENTS){
-        perror("Reached max number of clients!\n");
+        perror("Reached max number of clients!");
         return;
     }
 
-    int clientQueueKey;
-    sscanf(message->message, "%d", &clientQueueKey);
-    
-    int clientQueueID = msgget(clientQueueKey, 0);
+    //int clientQueueKey;
+    int clientQueueID;
+    sscanf(message->message, "%d", &clientQueueID);
+    //printf("clinetkey: %d\n", clientQueueKey);
+    // int clientQueueID = msgget(clientQueueKey, 0);
     if(clientQueueID == -1){
-        perror("Client queue doesn't exists!\n");
+        perror("Client queue doesn't exists!");
+        return;
     }
 
     clients[index].isActive = true;
@@ -158,7 +163,7 @@ void stopClient(Message *message){
     int index = getIndexOfClient(message->sourcePid);
 
     if(index == -1){
-        perror("Client with that pid isn't initialized yet!\n");
+        perror("Client with that pid isn't initialized yet!");
         return;
     }
     if(clients[index].pairID != NOT_EXISTING){
@@ -169,22 +174,25 @@ void stopClient(Message *message){
     clients[index].isActive = false;
     clients[index].isAvailable = false;
     clients[index].pid = NOT_EXISTING;
-    clients[index].queue = NOT_EXISTING;
     clients[index].pairID = NOT_EXISTING;
+    clients[index].queue = NOT_EXISTING;
 }
 
 void listClients(Message *message){
     int index = getIndexOfClient(message->sourcePid);
 
     if(index == -1){
-        perror("Client with that pid isn't initialized yet!\n");
+        perror("Client with that pid isn't initialized yet!");
         return;
     }
 
     Message response;
-    
+    response.message[0] = '\0';
+    //sprintf(response.message, "%s", "");
     for(int i = 0; i < MAX_CLIENTS; i++){
-        sprintf(response.message, "Client %d: %s", i, clients[i].isAvailable ? "Available" : "Not available");
+        char buff[50];
+        sprintf(buff, "Client %d: %s\n", i, clients[i].isAvailable ? "Available" : "Not available");
+        strcat(response.message, buff);
     }
     response.type = LIST;
     response.sourcePid = getpid();
@@ -196,17 +204,19 @@ void disconnectClient(Message *message){
     int index = getIndexOfClient(message->sourcePid);
 
     if(index == -1){
-        perror("Client with that pid isn't initialized yet!\n");
+        perror("Client with that pid isn't initialized yet!");
         return;
     }
     int pairIndex = clients[index].pairID;
 
     if(clients[index].isAvailable == true){
-        perror("Client wasn't connected\n");
+        perror("Client wasn't connected");
+        return;
     }
 
     if(clients[pairIndex].isAvailable == true){
-        perror("Pair client wans't connected\n");
+        perror("Pair client wans't connected");
+        return;
     }
 
     clients[index].isAvailable = true;
@@ -228,17 +238,17 @@ void connectClient(Message *message){
     int pairIndex;
     sscanf(message->message, "%d", &pairIndex);
     if(index == -1){
-        perror("Client with that pid isn't initialized yet!\n");
+        perror("Client with that pid isn't initialized yet!");
         return;
     }
 
     if(pairIndex >= MAX_CLIENTS || clients[pairIndex].pid == NOT_EXISTING){
-        perror("Pointed client doesn't exists or isn't initialized yet\n");
+        perror("Pointed client doesn't exists or isn't initialized yet");
         return;
     }
 
     if(clients[pairIndex].isAvailable == false){
-        perror("Pointed client is busy right now\n");
+        perror("Pointed client is busy right now");
         return;
     }
 
@@ -269,6 +279,7 @@ int getFirstFreeClientID(){
 }
 
 int getIndexOfClient(pid_t pid){
+    printf("pid: %d\n", pid);
     for(int i = 0; i < MAX_CLIENTS; i++){
         if(clients[i].pid == pid){
             return i;
@@ -278,8 +289,9 @@ int getIndexOfClient(pid_t pid){
 }
 
 void sendMessage(Message *message, int index){
-    if(msgsnd(clients[index].queue, message, sizeof(Message), 0) == -1){
-        perror("Cannot send messages to client\n");
+    printf("Sending: %s\n", message->message);
+    if(msgsnd(clients[index].queue, message, MESSAGE_STRUCT_SIZE, 0) == -1){
+        perror("Cannot send messages to client");
         printf("client queue id: %d\t client pid: %d\n", clients[index].queue, clients[index].pid);
     }
 }
