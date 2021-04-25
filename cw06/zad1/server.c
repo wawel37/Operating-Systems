@@ -166,9 +166,17 @@ void stopClient(Message *message){
         perror("Client with that pid isn't initialized yet!");
         return;
     }
-    if(clients[index].pairID != NOT_EXISTING){
-        //TODO
-        //NEED TO HANDLE THIS CASE
+    int pairIdx = clients[index].pairID;
+    if(pairIdx != NOT_EXISTING){
+        Message response;
+        sprintf(response.message, "%s", "Disconnected from client");
+        response.type = DISCONNECT;
+        response.sourcePid = getpid();
+
+        clients[pairIdx].isAvailable = true;
+        clients[pairIdx].pairID = NOT_EXISTING;
+
+        sendMessage(&response, pairIdx);
     }
 
     clients[index].isActive = false;
@@ -236,12 +244,14 @@ void disconnectClient(Message *message){
 void connectClient(Message *message){
     int index = getIndexOfClient(message->sourcePid);
     int pairIndex;
+    printf("message recieved: %s\n", message->message);
     sscanf(message->message, "%d", &pairIndex);
     if(index == -1){
         perror("Client with that pid isn't initialized yet!");
         return;
     }
-
+    printf("pairidx: %d\n", pairIndex);
+    printf("index: %d\n", index);
     if(pairIndex >= MAX_CLIENTS || clients[pairIndex].pid == NOT_EXISTING){
         perror("Pointed client doesn't exists or isn't initialized yet");
         return;
@@ -259,7 +269,7 @@ void connectClient(Message *message){
 
     Message respond1, respond2;
     sprintf(respond1.message, "%d", clients[index].queue);
-    sprintf(respond1.message, "%d", clients[pairIndex].queue);
+    sprintf(respond2.message, "%d", clients[pairIndex].queue);
     respond1.sourcePid = getpid();
     respond2.sourcePid = getpid();
     respond1.type = CONNECT;

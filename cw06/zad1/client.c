@@ -21,6 +21,7 @@ void stop();
 void disconnect();
 void list();
 void connect(int pairID);
+void chat(const char *buff);
 
 //Handlers for received messages
 void initHandler(Message *message);
@@ -28,6 +29,7 @@ void listHandler(Message *message);
 void disconnectHandler(Message *message);
 void connectHandler(Message *message);
 void stopHandler(Message *message);
+void chatHandler(Message *message);
 
 void listenMessages(union sigval sv);
 void listenSTDIN();
@@ -58,7 +60,7 @@ void listenSTDIN(){
             disconnect();
         }else if(strcmp("STOP", buff) == 0){
             stop();
-        }else if(strstr()){
+        }else if(strstr(buff, "CONNECT") != NULL){
             char separator[3] = " ";
             char* temp;
             temp = strtok(buff, separator);
@@ -77,6 +79,8 @@ void listenSTDIN(){
                 temp = strtok(NULL, separator);
                 counter++;
             }
+        }else if(isConnected){
+            chat(buff);
         }
     }
 }
@@ -85,27 +89,27 @@ void listenMessages(union sigval sv){
     (void)sv;
     Message message;
     if(msgrcv(clientQueueID, &message, MESSAGE_STRUCT_SIZE, 0, IPC_NOWAIT) >= 0){
-        if(isConnected){
-
-        }else{
-            switch(message.type){
-                case INIT:
-                    initHandler(&message);
-                    break;
-                case LIST:
-                    printf("dostalem lista\n");
-                    listHandler(&message);
-                    break;
-                case DISCONNECT:
-                    disconnectHandler(&message);
-                    break;
-                case CONNECT:
-                    connectHandler(&message);
-                    break;
-                case STOP:
-                    stopHandler(&message);
-                    break;
-            }
+        switch(message.type){
+            case INIT:
+                initHandler(&message);
+                break;
+            case LIST:
+                printf("dostalem lista\n");
+                listHandler(&message);
+                break;
+            case DISCONNECT:
+                disconnectHandler(&message);
+                break;
+            case CONNECT:
+                connectHandler(&message);
+                break;
+            case STOP:
+                stopHandler(&message);
+                break;
+            case MSG:
+                chatHandler(&message);
+                break;
+        
         }
     }
 }
@@ -232,15 +236,26 @@ void disconnect(){
 void connect(int pairID){
     Message message;
 
-    printf(message.message, "%d", pairID);
+    sprintf(message.message, "%d", pairID);
     message.type = CONNECT;
     message.sourcePid = getpid();
 
+    printf("Sending pairidx: %d\n", pairID);
     sendMessage(&message, serverQueueID);
+}
+
+void chat(const char *buff){
+    Message message;
+
+    strcpy(message.message, buff);
+    message.sourcePid = getpid();
+    message.type = MSG;
+    sendMessage(&message, pairClientQueueID);
 }
 
 void initHandler(Message *message){
     sscanf(message->message, "%d", &thisIndex);
+    printf("My index: %d\n", thisIndex);
 }
 
 void listHandler(Message *message){
@@ -249,6 +264,7 @@ void listHandler(Message *message){
 
 void connectHandler(Message *message){
     sscanf(message->message, "%d", &pairClientQueueID);
+    printf("Recieved connection to: %d\n", pairClientQueueID);
     isConnected = true;
 }
 
@@ -260,4 +276,8 @@ void disconnectHandler(Message *message){
 void stopHandler(Message *message){
     serverStop = true;
     exit(1);
+}
+
+void chatHandler(Message *message){
+    printf("Pair client: %s\n", message->message);
 }
