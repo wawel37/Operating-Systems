@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 #include "lib.h"
 
 //GLOBAL VARIABLES
@@ -68,10 +69,10 @@ void initializeServer(){
     }
 
     //Initializing normal exit
-    if(atexit(exitHandler) != 0){
-        perror("Exit function not set!\n");
-        exit(1);
-    }
+    // if(atexit(exitHandler) != 0){
+    //     perror("Exit function not set!\n");
+    //     exit(1);
+    // }
 
     //Initializing ctrl - c exit
     if(signal(SIGINT, exitHandler) == SIG_ERR){
@@ -100,7 +101,7 @@ void initializeServerQueue(){
 void listenToMessages(){
     Message message;
 
-    if(msgrcv(serverQueueID, &message, MESSAGE_STRUCT_SIZE,0,0) == -1){
+    if(msgrcv(serverQueueID, &message, sizeof(Message),0,0) == -1){
         perror("Error while recieving message\n");
         exit(1);
     }
@@ -277,7 +278,7 @@ int getIndexOfClient(pid_t pid){
 }
 
 void sendMessage(Message *message, int index){
-    if(msgsnd(clients[index].queue, message, MESSAGE_STRUCT_SIZE, 0) == -1){
+    if(msgsnd(clients[index].queue, message, sizeof(Message), 0) == -1){
         perror("Cannot send messages to client\n");
         printf("client queue id: %d\t client pid: %d\n", clients[index].queue, clients[index].pid);
     }
