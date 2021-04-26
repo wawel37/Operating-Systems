@@ -2,7 +2,7 @@ CC = gcc
 CC_FLAGS = -Wall -std=c11
 
 static:
-	$(CC) $(CC_FLAGS) -c lib.c -o lib.o
+	$(CC) $(CC_FLAGS) -c -ltr lib.c -o lib.o
 	ar rcs lib.a lib.o
 
 compile-client:

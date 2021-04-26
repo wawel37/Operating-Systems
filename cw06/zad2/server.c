@@ -38,13 +38,13 @@ void exitHandler(){
     if(serverQueueID != NOT_EXISTING){
         for(int i = 0; i < MAX_CLIENTS; i++){
             if(clients[i].pid != NOT_EXISTING){
-                if(mq_close(clients[i].queue) == -1){
-                    perror("client queue couldn't be closed!");
-                }
                 Message message;
                 message.type = STOP;
                 message.sourcePid = getpid();
                 sendMessage(&message, i);
+                if(mq_close(clients[i].queue) == -1){
+                    perror("client queue couldn't be closed!");
+                }
             }
         }
         if(mq_unlink(SERVER_ATTR_QUEUE_NAME) == -1){
@@ -87,7 +87,7 @@ void initializeServerQueue(){
     sAttr.mq_msgsize = MAX_MSG_LEN;
     sAttr.mq_maxmsg = MAX_MSGS;
 
-    serverQueueID = mq_open(SERVER_ATTR_QUEUE_NAME, O_RDONLY | O_CREAT, 0660, &sAttr);
+    serverQueueID = mq_open(SERVER_ATTR_QUEUE_NAME, O_RDONLY | O_CREAT, 0666, &sAttr);
     if(serverQueueID == -1){
         perror("Couldn't open server queue");
         exit(1);

@@ -20,7 +20,7 @@
 #define MAX_CLIENTS 10
 #define HOME_PATH getenv("HOME")
 #define MAX_MSG_LEN 1000
-#define MAX_MSGS 20
+#define MAX_MSGS 10
 #define MESSAGE_STRUCT_SIZE MAX_MSG_LEN + sizeof(pid_t)
 #define QUEUE_KEY_SEED 0x099
 #define NOT_EXISTING -1

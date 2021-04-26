@@ -1,11 +1,13 @@
 #include "lib.h"
-
+#include <errno.h>
 bool isConnected = false;
 bool serverStop = false;
 int serverQueueID = NOT_EXISTING;
 int clientQueueID = NOT_EXISTING;
 int pairClientQueueID = NOT_EXISTING;
 int thisIndex = NOT_EXISTING;
+char pairQueueName[50];
+char clientQueueName[50];
 
 void signalHandler(int sig);
 void exitHandler();
@@ -84,36 +86,40 @@ void listenSTDIN(){
         }
     }
 }
-
+//DONE
 void listenMessages(union sigval sv){
     (void)sv;
     Message message;
-    if(msgrcv(clientQueueID, &message, MESSAGE_STRUCT_SIZE, 0, IPC_NOWAIT) >= 0){
-        switch(message.type){
-            case INIT:
-                initHandler(&message);
-                break;
-            case LIST:
-                printf("dostalem lista\n");
-                listHandler(&message);
-                break;
-            case DISCONNECT:
-                disconnectHandler(&message);
-                break;
-            case CONNECT:
-                connectHandler(&message);
-                break;
-            case STOP:
-                stopHandler(&message);
-                break;
-            case MSG:
-                chatHandler(&message);
-                break;
-        
-        }
+    if(mq_receive(clientQueueID, (char*) &message, MAX_MSG_LEN ,NULL) == -1){
+        printf("errno: %d\n", errno);
+        perror("Error while recieving message!");
+        exit(1);
     }
-}
 
+    switch(message.type){
+        case INIT:
+            initHandler(&message);
+            break;
+        case LIST:
+            printf("dostalem lista\n");
+            listHandler(&message);
+            break;
+        case DISCONNECT:
+            disconnectHandler(&message);
+            break;
+        case CONNECT:
+            connectHandler(&message);
+            break;
+        case STOP:
+            stopHandler(&message);
+            break;
+        case MSG:
+            chatHandler(&message);
+            break;
+    }
+    
+}
+//DONE
 void setTimer() {
     timer_t timer;
     struct sigevent event;
@@ -126,15 +132,18 @@ void setTimer() {
     struct itimerspec timer_value = {ten_ms, ten_ms};
     timer_settime(timer, 0, &timer_value, NULL);
 }
-
+//DONE
 void signalHandler(int sig){
     exit(1);
 }
-
+//DONE
 void exitHandler(){
     if(clientQueueID != NOT_EXISTING){
-        if(msgctl(clientQueueID, IPC_RMID, NULL) == -1){
-            perror("Client Queue couldn't be removed!\n");
+        if(mq_close(clientQueueID) == -1){
+            perror("Client cannot close the queue");
+        }
+        if(mq_unlink(clientQueueName) == -1){
+            perror("Client cannot delete the queue");
         }
     }
     if(!serverStop){
@@ -143,8 +152,13 @@ void exitHandler(){
         message.sourcePid = getpid();
         sendMessage(&message, serverQueueID);
     }
+    if(isConnected){
+        if(mq_close(pairClientQueueID) == -1){
+            perror("Cannot close pair queue");
+        }
+    }
 }
-
+//DONE
 void initializeClient(){
     if(atexit(exitHandler) != 0){
         perror("Exit function not set!\n");
@@ -156,59 +170,46 @@ void initializeClient(){
         exit(1);
     }
 }
-
+//DONE
 void initializeClientQueue(){
-    key_t clientQueueKey = ftok(HOME_PATH, getpid());
+    struct mq_attr sAttr;
+    sAttr.mq_msgsize = MAX_MSG_LEN;
+    sAttr.mq_maxmsg = MAX_MSGS;
 
-    if(clientQueueKey == -1){
-        perror("Error occurred while generating server queue key\n");
-        exit(1);
-    }
-
-    if((clientQueueID = msgget(clientQueueKey, 0666)) > -1){
-        msgctl(clientQueueID, IPC_RMID, NULL);
-    }
-    //Flags set to return error when a queue with this key already exists
-    clientQueueID = msgget(clientQueueKey,  IPC_CREAT | IPC_EXCL | 0666);
-
+    sprintf(clientQueueName, "/client%d", getpid());
+   
+    clientQueueID = mq_open(clientQueueName, O_RDWR | O_CREAT , 0666, &sAttr);
     if(clientQueueID == -1){
         perror("Error occuredd while reading V system msg queue (probably a queue with this key already exists!)\n");
         exit(1);
     }
 }
-
+//DONE
 void initializeServerQueue(){
-    key_t serverQueueKey = ftok(HOME_PATH, QUEUE_KEY_SEED);
-
-    if(serverQueueKey == -1){
-        perror("Error occurred while generating server queue key\n");
-        exit(1);
-    }
-
-    serverQueueID = msgget(serverQueueKey, 0);
+    serverQueueID = mq_open(SERVER_ATTR_QUEUE_NAME, O_WRONLY);
 
     if(serverQueueID == -1){
         perror("Error occuredd while reading V system msg queue (probably a queue with this key already exists!)\n");
         exit(1);
     }
 }
-
+//DONE
 void initializeConnection(){
     Message message;
 
-    sprintf(message.message, "%d", clientQueueID);
+    sprintf(message.message, "%s", clientQueueName);
     message.type = INIT;
     message.sourcePid = getpid();
     sendMessage(&message, serverQueueID);
 }
-
+//DONE
 void sendMessage(Message *message, int recieverID){
-    if(msgsnd(recieverID, message, MESSAGE_STRUCT_SIZE, 0) == -1){
+    if(mq_send(recieverID, (char*) message, MAX_MSG_LEN, message->type) == -1){
         perror("Cannot send message to server\n");
         printf("server queue id: %d\n", recieverID);
     }
 }
-
+//DONE
 void list(){
     Message message;
     
@@ -217,11 +218,11 @@ void list(){
     message.type = LIST;
     sendMessage(&message, serverQueueID);
 }
-
+//DONE
 void stop(){
     raise(SIGINT);
 }
-
+//DONE
 void disconnect(){
     Message message;
 
@@ -232,7 +233,7 @@ void disconnect(){
     isConnected = false;
     pairClientQueueID = NOT_EXISTING;
 }
-
+//DONE
 void connect(int pairID){
     Message message;
 
@@ -243,7 +244,7 @@ void connect(int pairID){
     printf("Sending pairidx: %d\n", pairID);
     sendMessage(&message, serverQueueID);
 }
-
+//DONE
 void chat(const char *buff){
     Message message;
 
@@ -252,32 +253,38 @@ void chat(const char *buff){
     message.type = MSG;
     sendMessage(&message, pairClientQueueID);
 }
-
+//DONE
 void initHandler(Message *message){
     sscanf(message->message, "%d", &thisIndex);
     printf("My index: %d\n", thisIndex);
 }
-
+//DONE
 void listHandler(Message *message){
     printf("%s", message->message);
 }
-
+//DONE
 void connectHandler(Message *message){
-    sscanf(message->message, "%d", &pairClientQueueID);
+    sscanf(message->message, "%s", &pairQueueName);
+    pairClientQueueID = mq_open(pairQueueName, O_WRONLY);
+
+    if(pairClientQueueID == -1){
+        perror("Error occuredd while reading msg queue (probably a queue with this key already exists!)\n");
+        exit(1);
+    }
     printf("Recieved connection to: %d\n", pairClientQueueID);
     isConnected = true;
 }
-
+//DONE
 void disconnectHandler(Message *message){
     printf("%s\n", message->message);
     isConnected = false;
 }
-
+//DONE
 void stopHandler(Message *message){
     serverStop = true;
     exit(1);
 }
-
+//DONE
 void chatHandler(Message *message){
     printf("Pair client: %s\n", message->message);
 }
