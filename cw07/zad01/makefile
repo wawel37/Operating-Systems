@@ -1,7 +1,7 @@
 CC = gcc
 CC_FLAGS = -Wall -std=c11
 
-compile: cook supplier clear
+compile: clear cook supplier
 	touch Table.txt
 	touch Furnance.txt
 	$(CC) $(CC_FLAGS) main.c -o main
@@ -15,3 +15,5 @@ cook:
 clear:
 	rm -f Table.txt
 	rm -f Furnance.txt
+	rm -f cook
+	rm -f supplier

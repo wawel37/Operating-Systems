@@ -23,16 +23,21 @@
 #define TABLE_SIZE 5
 #define FURNANCE_SIZE 5
 
+#define FURNANCE_INDEX 0
+#define TABLE_INDEX 1
+
 
 
 typedef struct Table{
     int table[TABLE_SIZE];
     int numberOfPizzasInside;
+    int openIndex;
 }Table;
 
 typedef struct Furnance{
     int furnance[TABLE_SIZE];
     int numberOfPizzasInside;
+    int openIndex;
 }Furnance;  
 
 union semun{

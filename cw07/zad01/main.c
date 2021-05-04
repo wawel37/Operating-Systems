@@ -1,3 +1,4 @@
+#define _POSIX_SOURCE
 #include "lib.h"
 
 int N, M;
@@ -27,6 +28,7 @@ int main(int argc, char **argv){
     initSharedMemory();
     initSemaphoreSet();
     initPizzeria();
+    return 0;
 }
 
 void exitHandler(){
@@ -98,13 +100,14 @@ void initSharedMemory(){
     }
 
     int furnanceID = shmget(furnanceKey, sizeof(Furnance), 0666 | IPC_CREAT);
-    if(furnanceID = -1){
+    if(furnanceID == -1){
         perror("Cannot create shared memory for furnance");
         exit(1);
     }
 
     Furnance *furnance = shmat(furnanceID, NULL, 0);
     furnance->numberOfPizzasInside = 0;
+    furnance->openIndex = 0;
     for(int i = 0; i < FURNANCE_SIZE; i++){
         furnance->furnance[i] = -1;
     }
@@ -125,6 +128,7 @@ void initSharedMemory(){
 
     Table *table = shmat(tableID, NULL, 0);
     table->numberOfPizzasInside = 0;
+    table->openIndex = 0;
     for(int i = 0; i < TABLE_SIZE; i++){
         table->table[i] = -1;
     }
@@ -153,7 +157,7 @@ void initSemaphoreSet(){
         exit(1);
     }
 
-    if(semctl(semID, 0 ,SETVAL, arg) == -1){
+    if(semctl(semID, 1,SETVAL, arg) == -1){
         perror("Cannot set value of Table semaphore");
         exit(1);
     }
