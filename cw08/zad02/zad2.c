@@ -3,9 +3,11 @@
 #include <pthread.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <math.h>
+#include <string.h>
+#include <sys/time.h>
 
-
-const int NUM_OF_THREADS = 6;
+int NUM_OF_THREADS;
 
 typedef struct PGMData{
     int row;
@@ -24,24 +26,39 @@ typedef struct ThreadData{
 
 
 void *solve(void *value);
+void *solve2(void *value);
 void readPGM(const char *file_name, PGMData *data);
 int **allocateMatrix(int n, int m);
 void freeImage(int **image, int n);
 void printTab(PGMData *image);
 void skipComments(FILE *fp);
 void writeDataToFile(const char *fileName, PGMData *data);
-void negate(int **copy, int row, int column); //deprecated
-//void negate(PGMData *image); //deprecated
-void copyTable(PGMData *dest, int **source);
 
 
 
-int main(){
+int main(int argc, char **argv){
+    if(argc != 5){
+        perror("Wrong number of arguments!");
+        return 1;
+    }
+
+    NUM_OF_THREADS = atoi(argv[1]);
+    const char *splitType = argv[2];
+    const char *fileNameIN = argv[3];
+    const char *fileNameOUT = argv[4];
+
+    if(strcmp(splitType, "numbers") != 0 && strcmp(splitType, "block") != 0){
+        perror("Wrong split type!");
+        return 1;
+    }
+    
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
     PGMData pgmData;
     pthread_t threads[NUM_OF_THREADS];
 
-    readPGM("apollonian_gasket.ascii.pgm", &pgmData);
-    printf("%d %d \n", pgmData.col, pgmData.row);
+    readPGM(fileNameIN, &pgmData);
     int **copy = allocateMatrix(pgmData.row, pgmData.col);
 
     ThreadData threadDatas[NUM_OF_THREADS];
@@ -50,34 +67,75 @@ int main(){
         threadDatas[i].copy = copy;
         threadDatas[i].index = i;
         threadDatas[i].numOfThreads = NUM_OF_THREADS;
-        pthread_create(&threads[i], NULL, solve, &threadDatas[i]);
+        if(strcmp(splitType, "block") == 0){
+            pthread_create(&threads[i], NULL, solve, &threadDatas[i]);
+        }else if(strcmp(splitType, "numbers") == 0){
+            pthread_create(&threads[i], NULL, solve2, &threadDatas[i]);
+        }
     }
 
-    for(int i = 0; i < NUM_OF_THREADS; i++){
-        pthread_join(threads[i], NULL);
-    }
 
     freeImage(pgmData.matrix, pgmData.row);
     pgmData.matrix = copy;
-    writeDataToFile("a.ascii.pgm", &pgmData);
-
+    writeDataToFile(fileNameOUT, &pgmData);
     freeImage(pgmData.matrix, pgmData.row);
+
+    gettimeofday(&end, NULL);
+
+    printf("Main thread took %ld μs\n\n", ((end.tv_sec - start.tv_sec) * 1000000) + (end.tv_usec - start.tv_usec));
+
+    printf("=== %d Threads === \n", NUM_OF_THREADS);
+    for(int i = 0; i < NUM_OF_THREADS; i++){
+        long *result;
+        pthread_join(threads[i], (void *)&result);
+        printf("Thread %d: %ld μs\n", i, *result);
+    }
     return 0;
 }
 
 void *solve(void *value){
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
+    ThreadData *threadData = (ThreadData *) value;
+    PGMData *data = threadData->pgm;
+    int **copy = threadData->copy;
+    int k = threadData->index + 1;
+
+    for(int col = (k-1)*ceil(data->col/NUM_OF_THREADS); col < k*ceil(data->col/NUM_OF_THREADS); col++){
+        for(int row = 0; row < data->row; row++){
+            copy[row][col] = 255 - data->matrix[row][col];
+        }
+    }
+    
+    gettimeofday(&end, NULL);
+
+    long *result = malloc(sizeof(long));
+    *result = ((end.tv_sec - start.tv_sec) * 1000000) + (end.tv_usec - start.tv_usec);
+
+    pthread_exit((void *)result);
+}
+
+void *solve2(void *value){
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
     ThreadData *threadData = (ThreadData *) value;
     PGMData *data = threadData->pgm;
     int **copy = threadData->copy;
 
     for(int i = 0; i < data->col*data->row; i++){
         if(i % NUM_OF_THREADS == threadData->index){
-            //printf("Coords: %d %d \t index: %d\n", i/data->row, i%data->col, threadData->index);
             copy[i/data->row][i%data->col] = 255 - data->matrix[i/data->row][i%data->col];
-            //sleep(1);
         }
     }
-    return NULL;
+
+    gettimeofday(&end, NULL);
+
+    long *result = malloc(sizeof(long));
+    *result = ((end.tv_sec - start.tv_sec) * 1000000) + (end.tv_usec - start.tv_usec);
+
+    pthread_exit((void *)result);
 }
 
 int **allocateMatrix(int n, int m){
@@ -159,25 +217,5 @@ void writeDataToFile(const char *fileName, PGMData *data){
     fclose(file);
 }
 
-// void negate(PGMData *image){
-//     for(int i = 0; i < image->row; i++){
-//         for(int j = 0; j < image->col; j++){
-//             image->matrix[i][j] = 255 - image->matrix[i][j];
-//         }
-//     }
-// }
-void negate(int **copy, int row, int column){
-    for(int i = 0; i < row; i++){
-        for(int j = 0; j < column; j++){
-            copy[i][j] = 255 - copy[i][j];
-        }
-    }
-}
 
-void copyTable(PGMData *dest, int **source){
-    for(int i = 0; i < dest->row; i++){
-        for(int j = 0; j < dest->col; j++){
-            dest->matrix[i][j] = source[i][j];
-        }
-    }
-}
+
