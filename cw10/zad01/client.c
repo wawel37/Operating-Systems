@@ -22,8 +22,9 @@ int setSocketAsNetwork(char *arg){
 
     
     int netdesc = socket(AF_INET, SOCK_STREAM,0);
-    if(netdesc ==-1)
+    if(netdesc ==-1){
         perror("client: make socket inet");
+    }
     
     int connect_status = connect(netdesc, (struct sockaddr *)&netaddr, sizeof(netaddr));
     if(connect_status == -1){
@@ -42,9 +43,9 @@ int setSocketAsLocal(char *arg){
     strcpy(unixaddr.sun_path,path);
 
     int undesc = socket(AF_UNIX, SOCK_STREAM,0);
-    if(undesc==-1)
+    if(undesc==-1){
         perror("client: make socket unix");
-    
+    }
     int connect_status = connect(undesc, (struct sockaddr *)&unixaddr, sizeof(unixaddr));
     if(connect_status == -1){
         perror("client: connect local error");
@@ -63,13 +64,15 @@ void printGameBoard(){
         for(int j=0;j<3;j++){
             int sign = gameBoard[i][j];
 
-            if(sign==FREE)
+            if(sign==FREE){
                 line[p]='_';
-            else if(sign==X_CHARACTER)
+            }
+            else if(sign==X_CHARACTER){
                 line[p]='X';
-            else 
+            }
+            else {
                 line[p]='O';
-
+            }
             line[++p]=' ';
             p++;
         }
@@ -83,18 +86,22 @@ int checkWinner(){
     for(int i=0;i<3;i++){
         int suma=gameBoard[0][i]+gameBoard[1][i]+gameBoard[2][i];
         int suma2=gameBoard[i][0]+gameBoard[i][1]+gameBoard[i][2];
-        if(suma==3*myCharacter || suma2==3*myCharacter)
+        if(suma==3*myCharacter || suma2==3*myCharacter){
             return WINNER;
+        }
     }
-    if(gameBoard[0][0]+gameBoard[1][1]+gameBoard[2][2]==3*myCharacter)
+    if(gameBoard[0][0]+gameBoard[1][1]+gameBoard[2][2]==3*myCharacter){
         return WINNER;
-    if(gameBoard[0][2]+gameBoard[1][1]+gameBoard[2][0]==3*myCharacter)
+    }
+    if(gameBoard[0][2]+gameBoard[1][1]+gameBoard[2][0]==3*myCharacter){
         return WINNER;
+    }
     
     for(int i=0;i<3;i++){
         for(int j=0;j<3;j++){
-            if(gameBoard[i][j]==FREE)
+            if(gameBoard[i][j]==FREE){
                 return NOT_WINNER;
+            }
         }
     }
 
@@ -104,12 +111,12 @@ int checkWinner(){
 void disconnect(){
     printf("disconnect with server\n");
     
-    if(shutdown(serverdesc, SHUT_RDWR)==-1)
+    if(shutdown(serverdesc, SHUT_RDWR)==-1){
         perror("server: shutdown socket error");
-
-    if(close(serverdesc)==-1)
+    }
+    if(close(serverdesc)==-1){
         perror("server: close socket error");
-
+    }
     exit(0);
 }
 
@@ -121,9 +128,9 @@ void freeGameBoard(){
 }
 
 int saveMove(int cell, int sign){
-    if(cell==ERROR)
+    if(cell==ERROR){
         return 0;
-
+    }
     int col=-1,row=0;
 
     while(cell>0){
@@ -136,9 +143,9 @@ int saveMove(int cell, int sign){
         }
     }
     
-    if(gameBoard[row][col]!=FREE)
+    if(gameBoard[row][col]!=FREE){
         return ERROR;
-    
+    }
     gameBoard[row][col]=sign;
     place++;
     return 0;
@@ -189,8 +196,9 @@ void makeMove(int serverdesc){
                 return;
             }
         }
-        if(event.data.fd==STDIN_FILENO)
+        if(event.data.fd==STDIN_FILENO){
             break;
+        }
     }
 
 
@@ -269,9 +277,9 @@ int main(int argc, char ** argv){
     }
 
     epoldesc = epoll_create1(0);
-    if(epoldesc==-1)
+    if(epoldesc==-1){
         perror("server: epol create error");
-    
+    }
 
     struct epoll_event epoll_ev,epoll_ev2;
     epoll_ev.events=EPOLLIN ;
@@ -280,13 +288,15 @@ int main(int argc, char ** argv){
     epoll_da.fd=serverdesc;
     epoll_ev.data=epoll_da;
     
-    if(epoll_ctl(epoldesc,EPOLL_CTL_ADD,serverdesc,&epoll_ev)==-1)
+    if(epoll_ctl(epoldesc,EPOLL_CTL_ADD,serverdesc,&epoll_ev)==-1){
         perror("server: epoll unix ctl error");
+    }
 
     epoll_da2.fd=STDIN_FILENO;
     epoll_ev2.data=epoll_da2;
-    if(epoll_ctl(epoldesc,EPOLL_CTL_ADD,STDIN_FILENO,&epoll_ev2)==-1)
+    if(epoll_ctl(epoldesc,EPOLL_CTL_ADD,STDIN_FILENO,&epoll_ev2)==-1){
         perror("server: epoll net ctl error");
+    }
 
     struct message received;
     received.type=-1;
@@ -308,14 +318,16 @@ int main(int argc, char ** argv){
             msg.type=CONNECT;
 
             int send_status = write(serverdesc,&msg,sizeof(struct message));
-            if(send_status==-1)
+            if(send_status==-1){
                 perror("client: send name error");
+            }
             received.type=-1;
         }
         else if(received.type==CONNECT){
 
-            if(rcv_status==-1)
+            if(rcv_status==-1){
                 perror("client: receive msg error");
+            }
             else{
 
                 if(received.msg==ERROR){
